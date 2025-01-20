@@ -1,54 +1,48 @@
-from products import dao
-from typing import List, Dict, Any
+import json
+
+from cart import dao
+from products import Product
 
 
-class Product:
-    def __init__(self, id: int, name: str, description: str, cost: float, qty: int = 0):
-        """Represents a product with basic attributes."""
+class Cart:
+    def __init__(self, id: int, username: str, contents: list[Product], cost: float):
         self.id = id
-        self.name = name
-        self.description = description
+        self.username = username
+        self.contents = contents
         self.cost = cost
-        self.qty = qty
 
     @staticmethod
-    def load(data: Dict[str, Any]) -> "Product":
-        """Static method to create a Product instance from a dictionary."""
-        return Product(
-            id=data.get("id"),
-            name=data.get("name"),
-            description=data.get("description"),
-            cost=data.get("cost"),
-            qty=data.get("qty", 0)
-        )
+    def load(data):
+        return Cart(data['id'], data['username'], data['contents'], data['cost'])
 
 
-def list_products() -> List[Product]:
-    """Fetches and returns all products."""
-    products_data = dao.list_products()
-    return [Product.load(product) for product in products_data]  # Use list comprehension
+def get_cart(username: str) -> list:
+    """Fetches the cart contents for a user."""
+    cart_details = dao.get_cart(username)
+    if cart_details is None:
+        return []
+
+    # Parse all product IDs from cart details and avoid redundant loops
+    items = []
+    for cart_detail in cart_details:
+        contents = json.loads(cart_detail['contents'])
+        items.extend(contents)  # Merge all contents into one list
+
+    # Fetch products for all the items
+    products_list = [products.get_product(i) for i in items]
+    return products_list
 
 
-def get_product(product_id: int) -> Product:
-    """Fetches and returns a single product by ID."""
-    product_data = dao.get_product(product_id)
-    if not product_data:
-        raise ValueError(f"Product with ID {product_id} not found.")
-    return Product.load(product_data)
+def add_to_cart(username: str, product_id: int):
+    """Adds a product to the user's cart."""
+    dao.add_to_cart(username, product_id)
 
 
-def add_product(product: Dict[str, Any]):
-    """Adds a new product to the database."""
-    required_keys = {"id", "name", "description", "cost", "qty"}
-    if not required_keys.issubset(product.keys()):
-        raise ValueError(f"Product data is missing one or more required keys: {required_keys}")
-    dao.add_product(product)
+def remove_from_cart(username: str, product_id: int):
+    """Removes a product from the user's cart."""
+    dao.remove_from_cart(username, product_id)
 
 
-def update_qty(product_id: int, qty: int):
-    """Updates the quantity of a product."""
-    if qty < 0:
-        raise ValueError("Quantity cannot be negative.")
-    if not dao.get_product(product_id):
-        raise ValueError(f"Product with ID {product_id} does not exist.")
-    dao.update_qty(product_id, qty)
+def delete_cart(username: str):
+    """Deletes the entire cart for the user."""
+    dao.delete_cart(username)
